@@ -1,4 +1,5 @@
 using DispatchFlow.Infrastructure;
+using DispatchFlow.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,12 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Development:SeedData")) {
+    await using var scope = app.Services.CreateAsyncScope();
+    int insertedSlots = await DevelopmentDataSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+    app.Logger.LogInformation("Development seed inserted {InsertedSlots} delivery slots.", insertedSlots);
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment()) {
     app.MapOpenApi();
@@ -26,3 +33,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }
