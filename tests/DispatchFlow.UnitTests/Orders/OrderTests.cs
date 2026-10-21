@@ -1,0 +1,54 @@
+using DispatchFlow.Application.Orders;
+
+namespace DispatchFlow.UnitTests.Orders;
+
+public sealed class OrderTests {
+    private static readonly DateTimeOffset CreatedAtUtc = new(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(int.MaxValue)]
+    public void Constructor_CreatesActiveOrder(int quantity) {
+        var id = Guid.NewGuid();
+        var slotId = Guid.NewGuid();
+
+        var order = new Order(id, slotId, quantity, CreatedAtUtc);
+
+        Assert.Equal(id, order.Id);
+        Assert.Equal(slotId, order.SlotId);
+        Assert.Equal(quantity, order.Quantity);
+        Assert.Equal(CreatedAtUtc, order.CreatedAtUtc);
+        Assert.Equal(OrderStatus.Created, order.Status);
+    }
+
+    [Fact]
+    public void Constructor_RejectsEmptyId() {
+        Assert.Throws<ArgumentException>("id",
+            () => new Order(Guid.Empty, Guid.NewGuid(), 1, CreatedAtUtc));
+    }
+
+    [Fact]
+    public void Constructor_RejectsEmptySlotId() {
+        Assert.Throws<ArgumentException>("slotId",
+            () => new Order(Guid.NewGuid(), Guid.Empty, 1, CreatedAtUtc));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(int.MinValue)]
+    public void Constructor_RejectsNonPositiveQuantity(int quantity) {
+        Assert.Throws<ArgumentOutOfRangeException>("quantity",
+            () => new Order(Guid.NewGuid(), Guid.NewGuid(), quantity, CreatedAtUtc));
+    }
+
+    [Theory]
+    [InlineData(-3)]
+    [InlineData(3)]
+    public void Constructor_RejectsNonUtcCreationTime(int offsetHours) {
+        var createdAt = CreatedAtUtc.ToOffset(TimeSpan.FromHours(offsetHours));
+
+        Assert.Throws<ArgumentException>("createdAtUtc",
+            () => new Order(Guid.NewGuid(), Guid.NewGuid(), 1, createdAt));
+    }
+}
