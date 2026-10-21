@@ -1,9 +1,10 @@
+root = true
 
 [*]
 charset = utf-8
-end_of_line = crlf
-trim_trailing_whitespace = false
-insert_final_newline = false
+end_of_line = lf
+trim_trailing_whitespace = true
+insert_final_newline = true
 indent_style = space
 indent_size = 4
 
@@ -42,30 +43,10 @@ dotnet_naming_rule.private_constants_rule.resharper_guid = 236f7aa5-7b06-43ca-bf
 dotnet_naming_rule.private_constants_rule.severity = warning
 dotnet_naming_rule.private_constants_rule.style = all_upper_style
 dotnet_naming_rule.private_constants_rule.symbols = private_constants_symbols
-# Unity inspector fields:
-# In this project, fields intended to be assigned from the Unity Inspector are usually declared as public fields,
-# not as [SerializeField] private fields.
-#
-# Preferred:
-#   public Button CaptureButton;
-#   public TextMeshProUGUI TitleText;
-#
-# Avoid unless there is a specific reason:
-#   [SerializeField] private Button _captureButton;
-#   [SerializeField] private TextMeshProUGUI titleText;
-#
-# Naming convention for Unity serialized fields is PascalCase / UpperCamelCase.
-dotnet_naming_rule.unity_serialized_field_rule.import_to_resharper = True
-dotnet_naming_rule.unity_serialized_field_rule.resharper_description = Unity serialized field
-dotnet_naming_rule.unity_serialized_field_rule.resharper_guid = 5f0fdb63-c892-4d2c-9324-15c80b22a7ef
-dotnet_naming_rule.unity_serialized_field_rule.severity = warning
-dotnet_naming_rule.unity_serialized_field_rule.style = upper_camel_case_style
-dotnet_naming_rule.unity_serialized_field_rule.symbols = unity_serialized_field_symbols
 dotnet_naming_style.all_upper_style.capitalization = all_upper
 dotnet_naming_style.all_upper_style.word_separator = _
 dotnet_naming_style.on_upper_camel_case_style.capitalization = pascal_case
 dotnet_naming_style.on_upper_camel_case_style.required_prefix = on
-dotnet_naming_style.upper_camel_case_style.capitalization = pascal_case
 dotnet_naming_style.upper_camel_case_underscore_tolerant_style.capitalization = pascal_case
 dotnet_naming_style.upper_camel_case_underscore_tolerant_style.word_separator = _
 dotnet_naming_symbols.constants_symbols.applicable_accessibilities = public,internal,protected,protected_internal,private_protected
@@ -74,7 +55,7 @@ dotnet_naming_symbols.constants_symbols.required_modifiers = const
 dotnet_naming_symbols.constants_symbols.resharper_applicable_kinds = constant_field
 dotnet_naming_symbols.constants_symbols.resharper_required_modifiers = any
 dotnet_naming_symbols.enum_member_symbols.applicable_accessibilities = *
-dotnet_naming_symbols.enum_member_symbols.applicable_kinds = 
+dotnet_naming_symbols.enum_member_symbols.applicable_kinds =
 dotnet_naming_symbols.enum_member_symbols.resharper_applicable_kinds = enum_member
 dotnet_naming_symbols.enum_member_symbols.resharper_required_modifiers = any
 dotnet_naming_symbols.event_symbols.applicable_accessibilities = *
@@ -86,10 +67,6 @@ dotnet_naming_symbols.private_constants_symbols.applicable_kinds = field
 dotnet_naming_symbols.private_constants_symbols.required_modifiers = const
 dotnet_naming_symbols.private_constants_symbols.resharper_applicable_kinds = constant_field
 dotnet_naming_symbols.private_constants_symbols.resharper_required_modifiers = any
-dotnet_naming_symbols.unity_serialized_field_symbols.applicable_accessibilities = *
-dotnet_naming_symbols.unity_serialized_field_symbols.applicable_kinds = 
-dotnet_naming_symbols.unity_serialized_field_symbols.resharper_applicable_kinds = unity_serialised_field
-dotnet_naming_symbols.unity_serialized_field_symbols.resharper_required_modifiers = instance
 dotnet_style_parentheses_in_arithmetic_binary_operators = never_if_unnecessary:none
 dotnet_style_parentheses_in_other_binary_operators = always_for_clarity:none
 dotnet_style_parentheses_in_relational_binary_operators = never_if_unnecessary:none
@@ -148,20 +125,3 @@ indent_size = 2
 [{*.yaml,*.yml}]
 indent_style = space
 indent_size = 2
-
-[*.asmdef]
-indent_style = space
-indent_size = 2
-
-[*.asmref]
-indent_style = space
-indent_size = 2
-
-[*.inputactions]
-indent_style = space
-indent_size = 2
-
-[*.{appxmanifest,asax,ascx,aspx,axaml,build,c,c++,c++m,cc,ccm,cginc,compute,cp,cpp,cppm,cs,cshtml,cu,cuh,cxx,cxxm,dtd,fs,fsi,fsscript,fsx,fx,fxh,h,hh,hlsl,hlsli,hlslinc,hpp,hxx,inc,inl,ino,ipp,ixx,master,ml,mli,mpp,mq4,mq5,mqh,mxx,nuspec,paml,razor,resw,resx,shader,skin,tpp,usf,ush,uxml,vb,xaml,xamlx,xoml,xsd}]
-indent_style = space
-indent_size = 4
-tab_width = 4
