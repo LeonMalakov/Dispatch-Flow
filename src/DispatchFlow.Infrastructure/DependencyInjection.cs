@@ -1,3 +1,4 @@
+using DispatchFlow.Application.Orders;
 using DispatchFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +10,7 @@ public static class DependencyInjection {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped<IOrderRepository, EfOrderRepository>();
 
         return services;
     }
