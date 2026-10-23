@@ -1,19 +1,25 @@
+using DispatchFlow.Application.Orders;
 using DispatchFlow.Infrastructure;
 using DispatchFlow.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddScoped<OrderService>();
 builder.Services.AddInfrastructure(
     builder.Configuration.GetConnectionString("DispatchFlow")
     ?? throw new InvalidOperationException(
         "Connection string 'DispatchFlow' is not configured. Set ConnectionStrings__DispatchFlow."));
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+app.UseExceptionHandler(new ExceptionHandlerOptions {
+    SuppressDiagnosticsCallback = _ => false
+});
 
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Development:SeedData")) {
     await using var scope = app.Services.CreateAsyncScope();
@@ -21,7 +27,6 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Develop
     app.Logger.LogInformation("Development seed inserted {InsertedSlots} delivery slots.", insertedSlots);
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment()) {
     app.MapOpenApi();
 }
