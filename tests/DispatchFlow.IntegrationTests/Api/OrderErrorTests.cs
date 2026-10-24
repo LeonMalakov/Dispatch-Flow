@@ -29,17 +29,26 @@ public sealed class OrderErrorTests {
     public async Task UnexpectedRepositoryFailure_IsLoggedAndReturnsSafe500(string environment, string method, string accept) {
         // Arrange.
         var repository = Substitute.For<IOrderRepository>();
-        repository.CreateWithReservationAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
+
+        repository
+            .CreateWithReservationAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<CreateOrderResult>(new InvalidOperationException(INTERNAL_ERROR)));
-        repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        repository
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<Order?>(new InvalidOperationException(INTERNAL_ERROR)));
+
         using var logs = new ExceptionLogCollector();
 
-        await using var factory = new TestApiFactory("Host=127.0.0.1;Database=unused;Username=unused", environment, false, services => {
-            services.RemoveAll<IOrderRepository>();
-            services.AddScoped<IOrderRepository>(_ => repository);
-            services.AddLogging(logging => logging.AddProvider(logs));
-        });
+        await using var factory = new TestApiFactory(
+            "Host=127.0.0.1;Database=unused;Username=unused",
+            environment,
+            false,
+            services => {
+                services.RemoveAll<IOrderRepository>();
+                services.AddScoped<IOrderRepository>(_ => repository);
+                services.AddLogging(logging => logging.AddProvider(logs));
+            });
+
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions {
             BaseAddress = new Uri("https://localhost"),
             AllowAutoRedirect = false
@@ -54,15 +63,19 @@ public sealed class OrderErrorTests {
         // Assert.
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
+
         Assert.DoesNotContain(INTERNAL_ERROR, body);
         Assert.DoesNotContain("secret_orders", body);
         Assert.DoesNotContain("Password", body);
         Assert.DoesNotContain(nameof(InvalidOperationException), body);
         Assert.DoesNotContain("stackTrace", body);
+
         if (accept == "application/json") {
             Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
             var problem = Assert.IsType<ProblemDetails>(await response.Content.ReadFromJsonAsync<ProblemDetails>());
+
             Assert.Equal(500, problem.Status);
+
             using var json = JsonDocument.Parse(body);
             Assert.False(json.RootElement.TryGetProperty("exception", out _));
         }
@@ -84,7 +97,11 @@ public sealed class OrderErrorTests {
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
                 Func<TState, Exception?, string> formatter) {
                 if (logLevel >= LogLevel.Error && exception is not null) {
                     exceptions.Enqueue(exception);

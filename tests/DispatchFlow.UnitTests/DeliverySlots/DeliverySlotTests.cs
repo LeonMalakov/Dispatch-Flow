@@ -8,10 +8,13 @@ public sealed class DeliverySlotTests {
 
     [Fact]
     public void Constructor_CreatesSlotWithoutReservations() {
+        // Arrange.
         var id = Guid.NewGuid();
 
+        // Act.
         var slot = new DeliverySlot(id, 10, StartsAtUtc, EndsAtUtc);
 
+        // Assert.
         Assert.Equal(id, slot.Id);
         Assert.Equal(10, slot.Capacity);
         Assert.Equal(0, slot.Reserved);
@@ -21,7 +24,8 @@ public sealed class DeliverySlotTests {
 
     [Fact]
     public void Constructor_RejectsEmptyId() {
-        Assert.Throws<ArgumentException>("id",
+        Assert.Throws<ArgumentException>(
+            "id",
             () => new DeliverySlot(Guid.Empty, 10, StartsAtUtc, EndsAtUtc));
     }
 
@@ -30,7 +34,8 @@ public sealed class DeliverySlotTests {
     [InlineData(-1)]
     [InlineData(int.MinValue)]
     public void Constructor_RejectsNonPositiveCapacity(int capacity) {
-        Assert.Throws<ArgumentOutOfRangeException>("capacity",
+        Assert.Throws<ArgumentOutOfRangeException>(
+            "capacity",
             () => new DeliverySlot(Guid.NewGuid(), capacity, StartsAtUtc, EndsAtUtc));
     }
 
@@ -38,7 +43,8 @@ public sealed class DeliverySlotTests {
     [InlineData(0)]
     [InlineData(-1)]
     public void Constructor_RejectsEndAtOrBeforeStart(int endOffsetHours) {
-        Assert.Throws<ArgumentException>("endsAtUtc",
+        Assert.Throws<ArgumentException>(
+            "endsAtUtc",
             () => new DeliverySlot(Guid.NewGuid(), 10, StartsAtUtc, StartsAtUtc.AddHours(endOffsetHours)));
     }
 
@@ -48,7 +54,8 @@ public sealed class DeliverySlotTests {
     public void Constructor_RejectsNonUtcStart(int offsetHours) {
         var start = StartsAtUtc.ToOffset(TimeSpan.FromHours(offsetHours));
 
-        Assert.Throws<ArgumentException>("startsAtUtc",
+        Assert.Throws<ArgumentException>(
+            "startsAtUtc",
             () => new DeliverySlot(Guid.NewGuid(), 10, start, EndsAtUtc));
     }
 
@@ -58,7 +65,8 @@ public sealed class DeliverySlotTests {
     public void Constructor_RejectsNonUtcEnd(int offsetHours) {
         var end = EndsAtUtc.ToOffset(TimeSpan.FromHours(offsetHours));
 
-        Assert.Throws<ArgumentException>("endsAtUtc",
+        Assert.Throws<ArgumentException>(
+            "endsAtUtc",
             () => new DeliverySlot(Guid.NewGuid(), 10, StartsAtUtc, end));
     }
 }

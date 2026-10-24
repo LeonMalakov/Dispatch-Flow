@@ -13,6 +13,7 @@ namespace DispatchFlow.IntegrationTests.Api;
 public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
     [Fact]
     public async Task Post_ReplaysExistingOrder_EvenWhenSlotIsFull() {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
@@ -24,8 +25,10 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var created = Assert.IsType<OrderResponse>(await first.Content.ReadFromJsonAsync<OrderResponse>());
 
+        // Act.
         using var replay = await PostAsync(client, slot.Id, 2, key);
 
+        // Assert.
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         var existing = Assert.IsType<OrderResponse>(await replay.Content.ReadFromJsonAsync<OrderResponse>());
         Assert.Equal(created with { CreatedAtUtc = existing.CreatedAtUtc }, existing);
@@ -47,6 +50,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
     [InlineData(true)]
     [InlineData(false)]
     public async Task Post_WhenKeyIsReusedWithDifferentPayload_ReturnsConflict(bool changeSlot) {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 10);
         var otherSlot = await InsertSlotAsync(database, 10);
@@ -56,12 +60,14 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         using var first = await PostAsync(client, slot.Id, 2, "payload-key");
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
+        // Act.
         using var conflict = await PostAsync(
             client,
             changeSlot ? otherSlot.Id : slot.Id,
             changeSlot ? 2 : 3,
             "payload-key");
 
+        // Assert.
         await AssertProblemAsync(conflict, HttpStatusCode.Conflict, "Idempotency key conflict.");
 
         await using var reader = database.CreateContext();
@@ -74,14 +80,17 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
     [InlineData("first-key", "second-key")]
     [InlineData("Case-Key", "case-key")]
     public async Task Post_WithDifferentKeys_CreatesIndependentOrders(string firstKey, string secondKey) {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
 
+        // Act.
         using var first = await PostAsync(client, slot.Id, 1, firstKey);
         using var second = await PostAsync(client, slot.Id, 1, secondKey);
 
+        // Assert.
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
 
@@ -101,12 +110,15 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
 
     [Fact]
     public async Task Post_WhenKeyIsInvalid_Returns400WithoutChangingData() {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
 
         string[] invalidKeys = [" ", " key", "key ", "key value", "key,value", "key/value", "ключ", new string('a', 129)];
+
+        // Act & Assert.
         foreach (var key in invalidKeys) {
             using var response = await PostAsync(client, slot.Id, 1, key);
             await AssertInvalidHeaderAsync(response);
@@ -119,6 +131,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
 
     [Fact]
     public async Task Post_WhenHeaderIsPresentButEmpty_Returns400() {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
@@ -130,8 +143,10 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
             BaseAddress = new Uri("https://localhost")
         };
 
+        // Act.
         using var response = await PostAsync(client, slot.Id, 1, null);
 
+        // Assert.
         await AssertInvalidHeaderAsync(response);
 
         await using var reader = database.CreateContext();
@@ -141,6 +156,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
 
     [Fact]
     public async Task Post_WhenHeaderHasMultipleValues_Returns400() {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
@@ -151,8 +167,10 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         };
         Assert.True(request.Headers.TryAddWithoutValidation("Idempotency-Key", new[] { "first", "second" }));
 
+        // Act.
         using var response = await client.SendAsync(request);
 
+        // Assert.
         await AssertInvalidHeaderAsync(response);
 
         await using var reader = database.CreateContext();
@@ -164,6 +182,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
     [InlineData(true)]
     [InlineData(false)]
     public async Task Post_WhenSlotIsMissingOrFull_DoesNotKeepKey(bool missingSlot) {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var available = await InsertSlotAsync(database, 1);
         var full = await InsertSlotAsync(database, 1);
@@ -175,8 +194,10 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
             Assert.Equal(HttpStatusCode.Created, initial.StatusCode);
         }
 
+        // Act.
         using var failed = await PostAsync(client, missingSlot ? Guid.NewGuid() : full.Id, 1, "retry-key");
 
+        // Assert.
         await AssertProblemAsync(
             failed,
             missingSlot ? HttpStatusCode.NotFound : HttpStatusCode.Conflict,
@@ -195,6 +216,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
 
     [Fact]
     public async Task Post_WhenReservationThrows_RollsBackOrderAndKey_AndReturnsSafe500() {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
 
@@ -212,8 +234,10 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
 
+        // Act.
         using var failed = await PostAsync(client, slot.Id, 1, "retry-after-db-error");
 
+        // Assert.
         Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
         Assert.Equal("application/problem+json", failed.Content.Headers.ContentType?.MediaType);
         var body = await failed.Content.ReadAsStringAsync();
@@ -243,6 +267,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
     [InlineData("quantity")]
     [InlineData("slot")]
     public async Task Post_ConcurrentRequestsWithOneKey_CreateOnlyOneOrder(string difference) {
+        // Arrange.
         await using var database = await postgres.CreateDatabaseAsync();
         var slot = await InsertSlotAsync(database, 2);
         var otherSlot = await InsertSlotAsync(database, 2);
@@ -252,9 +277,11 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = Enumerable.Range(0, 12).Select(SendAfterStartAsync).ToArray();
 
+        // Act.
         start.SetResult();
         var results = await Task.WhenAll(pending);
 
+        // Assert.
         var winner = Assert.IsType<OrderResponse>(
             Assert.Single(results, result => result.Status == HttpStatusCode.Created).Order);
 

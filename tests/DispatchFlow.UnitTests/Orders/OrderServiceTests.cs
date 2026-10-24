@@ -6,6 +6,7 @@ namespace DispatchFlow.UnitTests.Orders;
 public sealed class OrderServiceTests {
     [Fact]
     public async Task CreateAsync_AssignsServerIdAndUtcTime_AndPassesRequestToRepository() {
+        // Arrange.
         var now = new DateTimeOffset(2026, 10, 21, 12, 0, 0, TimeSpan.Zero);
         var repository = Substitute.For<IOrderRepository>();
 
@@ -17,8 +18,10 @@ public sealed class OrderServiceTests {
         var slotId = Guid.NewGuid();
         using var cancellation = new CancellationTokenSource();
 
+        // Act.
         var result = await service.CreateAsync(slotId, 3, cancellation.Token);
 
+        // Assert.
         var order = Assert.IsType<Order>(result.Order);
 
         Assert.NotEqual(Guid.Empty, order.Id);
@@ -33,6 +36,7 @@ public sealed class OrderServiceTests {
 
     [Fact]
     public async Task CreateAsync_PassesIdempotencyKeyAndCancellationToRepository() {
+        // Arrange.
         var repository = Substitute.For<IOrderRepository>();
 
         repository
@@ -43,8 +47,10 @@ public sealed class OrderServiceTests {
         var slotId = Guid.NewGuid();
         using var cancellation = new CancellationTokenSource();
 
+        // Act.
         var result = await service.CreateAsync(slotId, 2, "Order:AbC-123", cancellation.Token);
 
+        // Assert.
         var order = Assert.IsType<Order>(result.Order);
 
         Assert.Equal("Order:AbC-123", order.IdempotencyKey);

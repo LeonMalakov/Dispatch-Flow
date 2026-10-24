@@ -9,11 +9,14 @@ public sealed class OrderTests {
     [InlineData(1)]
     [InlineData(int.MaxValue)]
     public void Constructor_CreatesActiveOrder(int quantity) {
+        // Arrange.
         var id = Guid.NewGuid();
         var slotId = Guid.NewGuid();
 
+        // Act.
         var order = new Order(id, slotId, quantity, CreatedAtUtc);
 
+        // Assert.
         Assert.Equal(id, order.Id);
         Assert.Equal(slotId, order.SlotId);
         Assert.Equal(quantity, order.Quantity);
@@ -81,8 +84,10 @@ public sealed class OrderTests {
     [Theory]
     [MemberData(nameof(ValidIdempotencyKeys))]
     public void Constructor_PreservesValidIdempotencyKey(string? key) {
+        // Act.
         var order = new Order(Guid.NewGuid(), Guid.NewGuid(), 1, CreatedAtUtc, key);
 
+        // Assert.
         Assert.Equal(key, order.IdempotencyKey);
     }
 
