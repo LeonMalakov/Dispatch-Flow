@@ -26,6 +26,10 @@ public sealed class OrderErrorTests {
     [InlineData("Development", "GET", "text/html")]
     [InlineData("Production", "POST", "text/html")]
     [InlineData("Production", "GET", "text/html")]
+    [InlineData("Development", "CANCEL", "application/json")]
+    [InlineData("Production", "CANCEL", "application/json")]
+    [InlineData("Development", "CANCEL", "text/html")]
+    [InlineData("Production", "CANCEL", "text/html")]
     public async Task UnexpectedRepositoryFailure_IsLoggedAndReturnsSafe500(string environment, string method, string accept) {
         // Arrange.
         var repository = Substitute.For<IOrderRepository>();
@@ -36,6 +40,9 @@ public sealed class OrderErrorTests {
         repository
             .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<Order?>(new InvalidOperationException(INTERNAL_ERROR)));
+        repository
+            .CancelWithReleaseAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<CancelOrderResult>(new InvalidOperationException(INTERNAL_ERROR)));
 
         using var logs = new ExceptionLogCollector();
 
@@ -56,9 +63,12 @@ public sealed class OrderErrorTests {
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(accept));
 
         // Act.
-        using var response = method == "POST"
-            ? await client.PostAsJsonAsync("/api/orders", new { slotId = Guid.NewGuid(), quantity = 1 })
-            : await client.GetAsync($"/api/orders/{Guid.NewGuid()}");
+        using var response = method switch {
+            "POST" => await client.PostAsJsonAsync("/api/orders", new { slotId = Guid.NewGuid(), quantity = 1 }),
+            "GET" => await client.GetAsync($"/api/orders/{Guid.NewGuid()}"),
+            "CANCEL" => await client.PostAsync($"/api/orders/{Guid.NewGuid()}/cancel", null),
+            _ => throw new ArgumentOutOfRangeException(nameof(method))
+        };
 
         // Assert.
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);

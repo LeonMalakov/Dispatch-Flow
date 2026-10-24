@@ -36,6 +36,46 @@ public sealed class EfOrderRepository(AppDbContext dbContext) : IOrderRepository
     public Task<Order?> GetByIdAsync(Guid orderId, CancellationToken ct = default) =>
         dbContext.Orders.AsNoTracking().SingleOrDefaultAsync(order => order.Id == orderId, ct);
 
+    public async Task<CancelOrderResult> CancelWithReleaseAsync(Guid orderId, CancellationToken ct = default) {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        var order = await GetByIdAsync(orderId, ct);
+        if (order is null) {
+            return CancelOrderResult.NotFound();
+        }
+
+        int updatedOrders = await dbContext.Orders
+            .Where(item => item.Id == orderId && item.Status == OrderStatus.Created)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Status, OrderStatus.Cancelled), ct);
+
+        if (updatedOrders == 1) {
+            int updatedSlots = await dbContext.DeliverySlots
+                .Where(slot => slot.Id == order.SlotId && slot.Reserved >= order.Quantity)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(slot => slot.Reserved, slot => slot.Reserved - order.Quantity), ct);
+            if (updatedSlots != 1) {
+                throw new InvalidOperationException("The order's delivery slot reservation could not be released.");
+            }
+        }
+
+        // ExecuteUpdate bypasses tracked objects; a waiting cancellation must also see the committed status.
+        var current = await GetByIdAsync(orderId, ct);
+        if (current is null) {
+            if (updatedOrders == 1) {
+                throw new InvalidOperationException("The cancelled order could not be found.");
+            }
+            return CancelOrderResult.NotFound();
+        }
+
+        if (current.Status != OrderStatus.Cancelled) {
+            throw new InvalidOperationException("The order has an unexpected status after cancellation.");
+        }
+
+        await transaction.CommitAsync(ct);
+        return updatedOrders == 1
+            ? CancelOrderResult.Cancelled(current)
+            : CancelOrderResult.AlreadyCancelled(current);
+    }
+
     private async Task<CreateOrderResult> CreateIdempotentAsync(Order order, CancellationToken ct) {
         var existing = await FindByKeyAsync(order.IdempotencyKey!, ct);
         if (existing is not null) {

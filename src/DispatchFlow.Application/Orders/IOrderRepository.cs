@@ -8,4 +8,10 @@ public interface IOrderRepository {
     Task<CreateOrderResult> CreateWithReservationAsync(Order order, CancellationToken ct = default);
 
     Task<Order?> GetByIdAsync(Guid orderId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancels a created order and releases its reservation atomically.
+    /// Repeated cancellation does not release capacity again.
+    /// </summary>
+    Task<CancelOrderResult> CancelWithReleaseAsync(Guid orderId, CancellationToken ct = default);
 }

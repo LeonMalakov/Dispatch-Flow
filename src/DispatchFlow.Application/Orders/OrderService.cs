@@ -11,4 +11,7 @@ public sealed class OrderService(IOrderRepository orderRepository, TimeProvider 
 
     public Task<Order?> GetByIdAsync(Guid orderId, CancellationToken ct = default) =>
         orderRepository.GetByIdAsync(orderId, ct);
+
+    public Task<CancelOrderResult> CancelAsync(Guid orderId, CancellationToken ct = default) =>
+        orderRepository.CancelWithReleaseAsync(orderId, ct);
 }

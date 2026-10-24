@@ -48,6 +48,30 @@ public sealed class OrdersController(OrderService orderService) : ControllerBase
         }
     }
 
+    [HttpPost("{id}/cancel")]
+    [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrderResponse>> Cancel(Guid id, CancellationToken ct) {
+        if (id == Guid.Empty) {
+            ModelState.AddModelError(nameof(id), "The order ID must not be empty.");
+            return ValidationProblem(ModelState);
+        }
+
+        var result = await orderService.CancelAsync(id, ct);
+
+        switch (result.Outcome) {
+            case CancelOrderOutcome.Cancelled:
+            case CancelOrderOutcome.AlreadyCancelled:
+                return Ok(OrderResponse.FromOrder(result.Order
+                    ?? throw new InvalidOperationException("A cancellation result must contain an order.")));
+            case CancelOrderOutcome.NotFound:
+                return Problem(statusCode: StatusCodes.Status404NotFound, title: "Order not found.");
+            default:
+                throw new InvalidOperationException("Unknown order cancellation outcome.");
+        }
+    }
+
     [HttpGet("{id}")]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
