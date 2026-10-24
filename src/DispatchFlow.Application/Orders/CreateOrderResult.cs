@@ -17,4 +17,11 @@ public sealed class CreateOrderResult {
     public static CreateOrderResult SlotNotFound() => new(CreateOrderOutcome.SlotNotFound, null);
 
     public static CreateOrderResult InsufficientCapacity() => new(CreateOrderOutcome.InsufficientCapacity, null);
+
+    public static CreateOrderResult Replayed(Order order) {
+        ArgumentNullException.ThrowIfNull(order);
+        return new CreateOrderResult(CreateOrderOutcome.Replayed, order);
+    }
+
+    public static CreateOrderResult IdempotencyConflict() => new(CreateOrderOutcome.IdempotencyConflict, null);
 }
