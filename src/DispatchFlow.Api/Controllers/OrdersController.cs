@@ -10,12 +10,24 @@ namespace DispatchFlow.Api.Controllers;
 public sealed class OrdersController(OrderService orderService) : ControllerBase {
     [HttpPost]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken ct) {
+        string? idempotencyKey = null;
+        if (Request.Headers.TryGetValue("Idempotency-Key", out var keys)) {
+            if (keys.Count != 1 || !IdempotencyKeyRules.IsValid(keys[0])) {
+                ModelState.AddModelError("Idempotency-Key",
+                    $"Provide one idempotency key of 1 to {IdempotencyKeyRules.MAX_LENGTH} characters using letters A-Z, a-z, digits, or -_.:.");
+                return ValidationProblem(ModelState);
+            }
+
+            idempotencyKey = keys[0];
+        }
+
         // ApiController validates the required nullable properties before invoking this action.
-        var result = await orderService.CreateAsync(request.SlotId!.Value, request.Quantity!.Value, ct);
+        var result = await orderService.CreateAsync(request.SlotId!.Value, request.Quantity!.Value, idempotencyKey, ct);
 
         switch (result.Outcome) {
             case CreateOrderOutcome.Created:
@@ -25,6 +37,12 @@ public sealed class OrdersController(OrderService orderService) : ControllerBase
                 return Problem(statusCode: StatusCodes.Status404NotFound, title: "Delivery slot not found.");
             case CreateOrderOutcome.InsufficientCapacity:
                 return Problem(statusCode: StatusCodes.Status409Conflict, title: "Insufficient delivery slot capacity.");
+            case CreateOrderOutcome.Replayed:
+                return Ok(OrderResponse.FromOrder(result.Order
+                    ?? throw new InvalidOperationException("A replayed order result must contain an order.")));
+            case CreateOrderOutcome.IdempotencyConflict:
+                return Problem(statusCode: StatusCodes.Status409Conflict, title: "Idempotency key conflict.",
+                    detail: "This idempotency key was already used with a different delivery slot or quantity.");
             default:
                 throw new InvalidOperationException("Unknown order creation outcome.");
         }

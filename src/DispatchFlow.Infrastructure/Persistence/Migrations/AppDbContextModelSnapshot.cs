@@ -61,6 +61,12 @@ namespace DispatchFlow.Infrastructure.Persistence.Migrations {
                     .HasColumnType("timestamp with time zone")
                     .HasColumnName("created_at_utc");
 
+                b.Property<string>("IdempotencyKey")
+                    .HasMaxLength(128)
+                    .HasColumnType("character varying(128)")
+                    .HasColumnName("idempotency_key")
+                    .UseCollation("C");
+
                 b.Property<int>("Quantity")
                     .HasColumnType("integer")
                     .HasColumnName("quantity");
@@ -76,10 +82,16 @@ namespace DispatchFlow.Infrastructure.Persistence.Migrations {
                 b.HasKey("Id")
                     .HasName("pk_orders");
 
+                b.HasIndex("IdempotencyKey")
+                    .IsUnique()
+                    .HasDatabaseName("ux_orders_idempotency_key");
+
                 b.HasIndex("SlotId")
                     .HasDatabaseName("ix_orders_slot_id");
 
                 b.ToTable("orders", null, t => {
+                    t.HasCheckConstraint("ck_orders_idempotency_key", "idempotency_key IS NULL OR (length(idempotency_key) BETWEEN 1 AND 128 AND idempotency_key !~ '[^A-Za-z0-9_.:-]')");
+
                     t.HasCheckConstraint("ck_orders_quantity_positive", "quantity > 0");
 
                     t.HasCheckConstraint("ck_orders_status", "status IN (0, 1)");

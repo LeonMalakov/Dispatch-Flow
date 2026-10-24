@@ -19,17 +19,20 @@ public sealed class OrderTests {
         Assert.Equal(quantity, order.Quantity);
         Assert.Equal(CreatedAtUtc, order.CreatedAtUtc);
         Assert.Equal(OrderStatus.Created, order.Status);
+        Assert.Null(order.IdempotencyKey);
     }
 
     [Fact]
     public void Constructor_RejectsEmptyId() {
-        Assert.Throws<ArgumentException>("id",
+        Assert.Throws<ArgumentException>(
+            "id",
             () => new Order(Guid.Empty, Guid.NewGuid(), 1, CreatedAtUtc));
     }
 
     [Fact]
     public void Constructor_RejectsEmptySlotId() {
-        Assert.Throws<ArgumentException>("slotId",
+        Assert.Throws<ArgumentException>(
+            "slotId",
             () => new Order(Guid.NewGuid(), Guid.Empty, 1, CreatedAtUtc));
     }
 
@@ -38,7 +41,8 @@ public sealed class OrderTests {
     [InlineData(-1)]
     [InlineData(int.MinValue)]
     public void Constructor_RejectsNonPositiveQuantity(int quantity) {
-        Assert.Throws<ArgumentOutOfRangeException>("quantity",
+        Assert.Throws<ArgumentOutOfRangeException>(
+            "quantity",
             () => new Order(Guid.NewGuid(), Guid.NewGuid(), quantity, CreatedAtUtc));
     }
 
@@ -48,7 +52,45 @@ public sealed class OrderTests {
     public void Constructor_RejectsNonUtcCreationTime(int offsetHours) {
         var createdAt = CreatedAtUtc.ToOffset(TimeSpan.FromHours(offsetHours));
 
-        Assert.Throws<ArgumentException>("createdAtUtc",
+        Assert.Throws<ArgumentException>(
+            "createdAtUtc",
             () => new Order(Guid.NewGuid(), Guid.NewGuid(), 1, createdAt));
+    }
+
+    public static TheoryData<string?> ValidIdempotencyKeys => new() {
+        null,
+        "A",
+        "Az09-_.:",
+        new string('a', 128)
+    };
+
+    public static TheoryData<string> InvalidIdempotencyKeys => new() {
+        "",
+        " ",
+        " key",
+        "key ",
+        "key value",
+        "key,value",
+        "key/value",
+        "ключ",
+        "key\n",
+        "key\t",
+        new string('a', 129)
+    };
+
+    [Theory]
+    [MemberData(nameof(ValidIdempotencyKeys))]
+    public void Constructor_PreservesValidIdempotencyKey(string? key) {
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), 1, CreatedAtUtc, key);
+
+        Assert.Equal(key, order.IdempotencyKey);
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidIdempotencyKeys))]
+    public void Constructor_RejectsInvalidIdempotencyKey(string key) {
+        Assert.Throws<ArgumentException>(
+            "idempotencyKey",
+            () => new Order(Guid.NewGuid(), Guid.NewGuid(), 1, CreatedAtUtc, key));
     }
 }
