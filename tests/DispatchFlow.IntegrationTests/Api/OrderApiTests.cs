@@ -157,9 +157,11 @@ public sealed class OrderApiTests(PostgreSqlFixture postgres) {
 
         using var response = await client.GetAsync($"/api/orders/{id}");
 
-        await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.NotNull(problem);
+        Assert.Equal(400, problem.Status);
         Assert.NotEmpty(problem.Errors);
     }
 
