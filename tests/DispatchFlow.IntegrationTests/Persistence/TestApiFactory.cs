@@ -10,6 +10,7 @@ internal sealed class TestApiFactory(string connectionString, string environment
     : WebApplicationFactory<Program> {
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment(environment);
+        builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", string.Empty);
         builder.UseSetting("ConnectionStrings:DispatchFlow", connectionString);
         if (seedEnabled.HasValue) {
             builder.UseSetting("Development:SeedData", seedEnabled.Value.ToString());

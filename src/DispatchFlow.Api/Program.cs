@@ -1,9 +1,11 @@
+using DispatchFlow.Api.Observability;
 using DispatchFlow.Application.Orders;
 using DispatchFlow.Infrastructure;
 using DispatchFlow.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddObservability();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
