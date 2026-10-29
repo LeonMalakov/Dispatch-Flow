@@ -1,6 +1,7 @@
 using DispatchFlow.Application.Orders;
 using DispatchFlow.Infrastructure;
 using DispatchFlow.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,8 @@ builder.Services.AddInfrastructure(
         "Connection string 'DispatchFlow' is not configured. Set ConnectionStrings__DispatchFlow."));
 
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("postgresql", tags: ["ready"]);
 
 var app = builder.Build();
 
@@ -36,6 +39,12 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health/live", new HealthCheckOptions {
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions {
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 app.Run();
 
