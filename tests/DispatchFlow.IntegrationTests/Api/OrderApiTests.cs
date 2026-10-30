@@ -18,6 +18,7 @@ public sealed class OrderApiTests(PostgreSqlFixture postgres) {
         var slot = await InsertSlotAsync(database, 10);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
         var before = DateTimeOffset.UtcNow;
 
         using var response = await client.PostAsJsonAsync("/api/orders", new { slotId = slot.Id, quantity = 3 });
@@ -59,6 +60,7 @@ public sealed class OrderApiTests(PostgreSqlFixture postgres) {
         Assert.Equal(3, stored.Quantity);
         Assert.Equal(retrieved.CreatedAtUtc, stored.CreatedAtUtc);
         Assert.Equal(3, (await reader.DeliverySlots.SingleAsync()).Reserved);
+        metrics.AssertCounts(created: 1);
     }
 
     [Theory]

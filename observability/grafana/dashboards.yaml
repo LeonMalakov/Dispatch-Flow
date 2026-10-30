@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: DispatchFlow
+    orgId: 1
+    type: file
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards/dispatchflow
+      foldersFromFilesStructure: false

@@ -20,6 +20,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         var otherSlot = await InsertSlotAsync(database, 10);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
         var target = await CreateOrderAsync(client, slot.Id, 2);
         var survivor = await CreateOrderAsync(client, slot.Id, 3);
         var other = await CreateOrderAsync(client, otherSlot.Id, 4);
@@ -41,6 +42,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         using var get = await client.GetAsync($"/api/orders/{target.Id}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         Assert.Equal(cancelled, await get.Content.ReadFromJsonAsync<OrderResponse>());
+        metrics.AssertCounts(created: 3, cancelled: 1);
 
         await using (var reader = database.CreateContext()) {
             var orders = await reader.Orders.AsNoTracking().ToListAsync();
@@ -59,6 +61,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         Assert.Equal(4, await finalReader.Orders.CountAsync());
         Assert.Equal(5, (await finalReader.DeliverySlots.SingleAsync(item => item.Id == slot.Id)).Reserved);
         Assert.Equal(4, (await finalReader.DeliverySlots.SingleAsync(item => item.Id == otherSlot.Id)).Reserved);
+        metrics.AssertCounts(created: 4, cancelled: 1);
     }
 
     [Fact]
@@ -112,6 +115,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         var slot = await InsertSlotAsync(database, 10);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
         var target = await CreateOrderAsync(client, slot.Id, 2);
         var survivor = await CreateOrderAsync(client, slot.Id, 3);
 
@@ -132,6 +136,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         Assert.Equal(OrderStatus.Created, orders.Single(order => order.Id == survivor.Id).Status);
         // A second release could still satisfy Reserved >= Quantity, so verify the exact balance.
         Assert.Equal(3, (await reader.DeliverySlots.SingleAsync()).Reserved);
+        metrics.AssertCounts(created: 2, cancelled: 1);
     }
 
     [Fact]
@@ -256,6 +261,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
         var original = await CreateOrderAsync(client, slot.Id, 2);
 
         // The test-only trigger fails after the order status UPDATE and before capacity is released.
@@ -281,6 +287,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         Assert.DoesNotContain("test cancellation failure", body);
         Assert.DoesNotContain("fail_release", body);
         Assert.DoesNotContain("PostgresException", body);
+        metrics.AssertCounts(created: 1);
 
         await using (var reader = database.CreateContext()) {
             Assert.Equal(OrderStatus.Created, (await reader.Orders.SingleAsync()).Status);
@@ -296,6 +303,7 @@ public sealed class OrderCancellationApiTests(PostgreSqlFixture postgres) {
         await using var finalReader = database.CreateContext();
         Assert.Equal(OrderStatus.Cancelled, (await finalReader.Orders.SingleAsync()).Status);
         Assert.Equal(0, (await finalReader.DeliverySlots.SingleAsync()).Reserved);
+        metrics.AssertCounts(created: 1, cancelled: 1);
     }
 
     private static HttpClient CreateClient(TestApiFactory factory) => factory.CreateClient(new WebApplicationFactoryClientOptions {

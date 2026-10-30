@@ -1,6 +1,48 @@
-@DispatchFlow.Api_HostAddress = http://localhost:5109
 
-GET {{DispatchFlow.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+@host = http://localhost:5109
+@slotId = d1010000-0000-0000-0000-000000000001
+@idempotencyKey = demo-0001
 
-###
+### 1. Health Check
+GET {{host}}/health/ready
+
+### 2. Create order
+POST {{host}}/api/orders
+Content-Type: application/json
+Idempotency-Key: {{idempotencyKey}}
+
+{
+    "slotId": "{{slotId}}",
+    "quantity": 2
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("orderId", response.body.id);
+    }
+%}
+
+### 3. Idempotency replay
+POST {{host}}/api/orders
+Content-Type: application/json
+Idempotency-Key: {{idempotencyKey}}
+
+{
+    "slotId": "{{slotId}}",
+    "quantity": 2
+}
+
+### 4. Get order
+GET {{host}}/api/orders/{{orderId}}
+
+### 5. Cancel order
+POST {{host}}/api/orders/{{orderId}}/cancel
+
+### 6. Insufficient capacity
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{
+    "slotId": "{{slotId}}",
+    "quantity": 1000
+}
