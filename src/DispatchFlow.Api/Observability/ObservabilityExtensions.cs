@@ -1,3 +1,4 @@
+using DispatchFlow.Application.Orders;
 using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -15,7 +16,9 @@ public static class ObservabilityExtensions {
             .WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
                 .AddNpgsql())
-            .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddMeter(OrderMetrics.METER_NAME))
             .WithLogging(configureBuilder: null, configureOptions: logging => logging.IncludeFormattedMessage = true);
 
         builder.Logging.AddFilter<OpenTelemetryLoggerProvider>("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);

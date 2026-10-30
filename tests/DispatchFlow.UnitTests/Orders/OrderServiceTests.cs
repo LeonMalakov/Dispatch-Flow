@@ -1,4 +1,6 @@
+using System.Diagnostics.Metrics;
 using DispatchFlow.Application.Orders;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace DispatchFlow.UnitTests.Orders;
@@ -14,7 +16,8 @@ public sealed class OrderServiceTests {
             .CreateWithReservationAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
             .Returns(call => CreateOrderResult.Created(call.Arg<Order>()));
 
-        var service = new OrderService(repository, new FixedTimeProvider(now));
+        using var meter = new Meter(OrderMetrics.METER_NAME);
+        var service = CreateService(repository, new FixedTimeProvider(now), meter);
         var slotId = Guid.NewGuid();
         using var cancellation = new CancellationTokenSource();
 
@@ -43,7 +46,8 @@ public sealed class OrderServiceTests {
             .CreateWithReservationAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
             .Returns(call => CreateOrderResult.Created(call.Arg<Order>()));
 
-        var service = new OrderService(repository, new FixedTimeProvider(DateTimeOffset.UtcNow));
+        using var meter = new Meter(OrderMetrics.METER_NAME);
+        var service = CreateService(repository, new FixedTimeProvider(DateTimeOffset.UtcNow), meter);
         var slotId = Guid.NewGuid();
         using var cancellation = new CancellationTokenSource();
 
@@ -56,6 +60,46 @@ public sealed class OrderServiceTests {
         Assert.Equal("Order:AbC-123", order.IdempotencyKey);
 
         await repository.Received(1).CreateWithReservationAsync(order, cancellation.Token);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RecordsCreationOnlyAfterRepositoryCompletes() {
+        // Arrange.
+        var repository = Substitute.For<IOrderRepository>();
+        var completion = new TaskCompletionSource<CreateOrderResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        repository.CreateWithReservationAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>()).Returns(completion.Task);
+        using var meter = new Meter(OrderMetrics.METER_NAME);
+        long created = 0;
+        using var listener = new MeterListener {
+            InstrumentPublished = (instrument, observer) => {
+                if (ReferenceEquals(instrument.Meter, meter)) {
+                    observer.EnableMeasurementEvents(instrument);
+                }
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, _, _) => {
+            if (instrument.Name == "dispatchflow.orders.created") {
+                Interlocked.Add(ref created, value);
+            }
+        });
+        listener.Start();
+        var service = CreateService(repository, TimeProvider.System, meter);
+        var order = new Order(Guid.NewGuid(), Guid.NewGuid(), 2, DateTimeOffset.UtcNow);
+
+        // Act & Assert.
+        var pending = service.CreateAsync(order.SlotId, order.Quantity);
+        Assert.False(pending.IsCompleted);
+        Assert.Equal(0, Interlocked.Read(ref created));
+
+        completion.SetResult(CreateOrderResult.Created(order));
+        await pending;
+        Assert.Equal(1, Interlocked.Read(ref created));
+    }
+
+    private static OrderService CreateService(IOrderRepository repository, TimeProvider timeProvider, Meter meter) {
+        var meterFactory = Substitute.For<IMeterFactory>();
+        meterFactory.Create(Arg.Any<MeterOptions>()).Returns(meter);
+        return new OrderService(repository, timeProvider, new OrderMetrics(meterFactory), NullLogger<OrderService>.Instance);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider {

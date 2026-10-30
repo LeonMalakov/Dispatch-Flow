@@ -10,6 +10,7 @@ builder.AddObservability();
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<OrderMetrics>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddInfrastructure(
     builder.Configuration.GetConnectionString("DispatchFlow")
