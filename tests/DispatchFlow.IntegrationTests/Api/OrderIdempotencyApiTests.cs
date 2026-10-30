@@ -18,6 +18,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         var slot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
 
         var key = "Az09-_.:".PadRight(128, 'a');
         using var first = await PostAsync(client, slot.Id, 2, key);
@@ -44,6 +45,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         Assert.Equal(key, stored.IdempotencyKey);
         Assert.Equal(existing.CreatedAtUtc, stored.CreatedAtUtc);
         Assert.Equal(2, (await reader.DeliverySlots.SingleAsync()).Reserved);
+        metrics.AssertCounts(created: 1, replayed: 1);
     }
 
     [Theory]
@@ -233,6 +235,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
 
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
 
         // Act.
         using var failed = await PostAsync(client, slot.Id, 1, "retry-after-db-error");
@@ -245,6 +248,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         Assert.DoesNotContain("test reservation failure", body);
         Assert.DoesNotContain("fail_reservation", body);
         Assert.DoesNotContain("PostgresException", body);
+        metrics.AssertCounts();
 
         await using (var reader = database.CreateContext()) {
             Assert.Equal(0, await reader.Orders.CountAsync());
@@ -260,6 +264,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         await using var finalReader = database.CreateContext();
         Assert.Equal("retry-after-db-error", (await finalReader.Orders.SingleAsync()).IdempotencyKey);
         Assert.Equal(1, (await finalReader.DeliverySlots.SingleAsync()).Reserved);
+        metrics.AssertCounts(created: 1);
     }
 
     [Theory]
@@ -273,6 +278,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         var otherSlot = await InsertSlotAsync(database, 2);
         await using var factory = new TestApiFactory(database.ConnectionString, "Development", false);
         using var client = CreateClient(factory);
+        using var metrics = new OrderMetricsListener(factory.Services);
 
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = Enumerable.Range(0, 12).Select(SendAfterStartAsync).ToArray();
@@ -315,6 +321,7 @@ public sealed class OrderIdempotencyApiTests(PostgreSqlFixture postgres) {
         var slots = await reader.DeliverySlots.AsNoTracking().ToListAsync();
         Assert.All(slots, item => Assert.Equal(item.Id == winner.SlotId ? winner.Quantity : 0, item.Reserved));
         Assert.Equal(stored.Quantity, slots.Sum(item => item.Reserved));
+        metrics.AssertCounts(created: 1, replayed: difference == "same" ? 11 : 5);
 
         async Task<(HttpStatusCode Status, OrderResponse? Order, Guid SlotId, int Quantity)> SendAfterStartAsync(int index) {
             var requestedSlot = difference == "slot" && index % 2 == 1 ? otherSlot.Id : slot.Id;

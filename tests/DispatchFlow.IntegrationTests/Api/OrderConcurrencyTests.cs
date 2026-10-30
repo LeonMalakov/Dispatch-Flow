@@ -63,6 +63,7 @@ public sealed class OrderConcurrencyTests(PostgreSqlFixture postgres) {
             BaseAddress = new Uri("https://localhost"),
             AllowAutoRedirect = false
         });
+        using var metrics = new OrderMetricsListener(factory.Services);
 
         var expectedQuantities = new Dictionary<Guid, int>();
 
@@ -124,6 +125,9 @@ public sealed class OrderConcurrencyTests(PostgreSqlFixture postgres) {
             storedOrders.Select(order => order.Id).OrderBy(id => id).ToArray());
 
         Assert.Equal(storedOrders.Sum(order => order.Quantity), storedSlot.Reserved);
+        metrics.AssertCounts(
+            created: expectedCreated + (initialQuantity > 0 ? 1 : 0),
+            capacityRejected: requestCount - expectedCreated);
 
         Assert.All(storedOrders, order => {
             Assert.Equal(slot.Id, order.SlotId);
